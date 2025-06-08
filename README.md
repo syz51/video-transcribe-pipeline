@@ -1,272 +1,202 @@
-# Audio Transcriber with SRT Caption Generation
+# Audio Transcription MCP Server
 
-This project provides a complete solution for transcribing audio files using [Deepgram's API](https://deepgram.com) and converting the transcription results into SRT (SubRip Subtitle) caption files using the [deepgram-python-captions](https://github.com/deepgram/deepgram-python-captions) library.
+This is a Model Context Protocol (MCP) server that provides audio transcription capabilities using AssemblyAI. It converts your original script into a reusable MCP server that can transcribe audio files and return SRT or VTT subtitle formats.
 
 ## Features
 
-- **Audio Transcription**: Transcribe local audio files or audio from URLs
-- **SRT Caption Generation**: Automatically convert transcriptions to properly formatted SRT files
-- **Multiple Audio Formats**: Support for various audio formats (WAV, MP3, MP4, etc.)
-- **Flexible Configuration**: Customize transcription models, languages, and options
-- **Speaker Diarization**: Optional speaker identification in transcriptions
-- **Command-Line Interface**: Easy-to-use CLI for batch processing
-- **Programmatic API**: Use as a Python library in your own projects
+- **Audio Transcription**: Transcribe local audio files to text with timestamps
+- **Multiple Output Formats**: Generate both SRT and VTT subtitle formats
+- **Language Support**: Configurable language codes (optimized for Korean, supports many others)
+- **Advanced Configuration**: Includes speaker labels, punctuation, and entity detection
+- **Error Handling**: Comprehensive error handling with meaningful messages
+- **MCP Integration**: Built with FastMCP for easy integration with AI assistants
 
 ## Installation
 
-### 1. Install Required Packages
+1. **Install Dependencies**:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Or install manually:
-
-```bash
-pip install deepgram-sdk>=3.0.0
-pip install deepgram-captions>=1.0.0
-pip install python-dotenv>=1.0.0  # Optional, for .env file support
-```
-
-### 2. Get a Deepgram API Key
-
-1. Sign up for a free account at [Deepgram Console](https://console.deepgram.com/)
-2. Create a new API key in your dashboard
-3. Set the API key as an environment variable:
-
-**Linux/macOS:**
-
-```bash
-export DEEPGRAM_API_KEY="your-api-key-here"
-```
-
-**Windows:**
-
-```cmd
-set DEEPGRAM_API_KEY=your-api-key-here
-```
-
-Or create a `.env` file in your project directory:
-
-```
-DEEPGRAM_API_KEY=your-api-key-here
-```
+2. **Set up AssemblyAI API Key**:
+   - The current script includes an API key, but you should replace it with your own
+   - Get your API key from [AssemblyAI](https://www.assemblyai.com/)
+   - Update the key in `transcribe_mcp_server.py`
 
 ## Usage
 
-### Command Line Interface
+### Running the Server
 
-#### Basic Usage
-
-```bash
-# Transcribe a local audio file
-python audio_transcriber.py path/to/audio.wav
-
-# Transcribe audio from a URL
-python audio_transcriber.py https://example.com/audio.mp3
-
-# Specify output file
-python audio_transcriber.py audio.wav -o my_captions.srt
-```
-
-#### Advanced Options
+**Option 1: Direct execution**
 
 ```bash
-# Use different model and language
-python audio_transcriber.py audio.wav -m nova-3 -l es
-
-# Enable speaker diarization
-python audio_transcriber.py audio.wav --diarize
-
-# Set custom line length for captions
-python audio_transcriber.py audio.wav --line-length 50
-
-# Enable verbose logging
-python audio_transcriber.py audio.wav -v
-
-# Use API key from command line
-python audio_transcriber.py audio.wav -k your-api-key-here
+python transcribe_mcp_server.py
 ```
 
-#### Complete Options
+**Option 2: Using FastMCP CLI**
 
 ```bash
-python audio_transcriber.py --help
+fastmcp run transcribe_mcp_server.py
 ```
 
-### Programmatic Usage
+**Option 3: For development with inspector**
+
+```bash
+fastmcp dev transcribe_mcp_server.py
+```
+
+### Available Tools
+
+The server provides three main tools:
+
+1. **`transcribe_audio_to_srt`**
+
+   - **Purpose**: Transcribe audio file and return SRT subtitle content
+   - **Parameters**:
+     - `audio_file_path` (string): Path to your local audio file
+     - `language_code` (string, optional): Language code (default: "ko" for Korean)
+   - **Returns**: SRT formatted subtitle text
+
+2. **`transcribe_audio_to_vtt`**
+
+   - **Purpose**: Transcribe audio file and return VTT subtitle content
+   - **Parameters**:
+     - `audio_file_path` (string): Path to your local audio file
+     - `language_code` (string, optional): Language code (default: "ko" for Korean)
+   - **Returns**: VTT formatted subtitle text
+
+3. **`get_supported_languages`**
+   - **Purpose**: Get list of supported language codes
+   - **Parameters**: None
+   - **Returns**: List of language codes (en, ko, ja, zh, etc.)
+
+### Testing the Server
+
+Run the test script to verify everything works:
+
+```bash
+python test_transcription_server.py
+```
+
+Make sure you have an audio file at `output/output.wav` or update the path in the test script.
+
+### Using with AI Assistants
+
+#### Claude Desktop Integration
+
+1. **Install via FastMCP CLI** (recommended):
+
+```bash
+fastmcp install transcribe_mcp_server.py --name "Audio Transcription"
+```
+
+2. **Manual Configuration**:
+   Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "audio-transcription": {
+      "command": "python",
+      "args": ["path/to/transcribe_mcp_server.py"]
+    }
+  }
+}
+```
+
+#### Programmatic Usage
 
 ```python
-import os
-from audio_transcriber import AudioTranscriber
+import asyncio
+from fastmcp import Client
 
-# Initialize transcriber
-api_key = os.getenv("DEEPGRAM_API_KEY")
-transcriber = AudioTranscriber(api_key=api_key, verbose=True)
+async def transcribe_my_audio():
+    client = Client("transcribe_mcp_server.py")
 
-# Transcribe and generate SRT in one step
-transcription, srt_content = transcriber.transcribe_and_caption(
-    audio_source="path/to/audio.wav",
-    output_path="output.srt",
-    model="nova-3",
-    language="en-US",
-    diarize=True
-)
+    async with client:
+        result = await client.call_tool("transcribe_audio_to_srt", {
+            "audio_file_path": "my_audio.wav",
+            "language_code": "en"
+        })
 
-# Or do it step by step
-transcription_response = transcriber.transcribe_audio(
-    audio_source="path/to/audio.wav",
-    model="nova-3",
-    smart_format=True,
-    punctuate=True
-)
+        srt_content = result[0].text
+        print(srt_content)
 
-srt_captions = transcriber.convert_to_srt(transcription_response)
-transcriber.save_srt_file(srt_captions, "output.srt")
+asyncio.run(transcribe_my_audio())
 ```
 
-## Configuration Options
+## Configuration
 
-### Transcription Models
+### Language Codes
 
-- `nova-3` (default): Latest and most accurate model
-- `nova-2`: Previous generation model
-- `enhanced`: Enhanced model for better accuracy
-- `base`: Basic model for faster processing
+- `en` - English
+- `ko` - Korean (default)
+- `ja` - Japanese
+- `zh` - Chinese
+- `es` - Spanish
+- `fr` - French
+- `de` - German
+- And more...
 
-### Languages
+### Audio Formats
 
-Support for 30+ languages including:
-
-- `en-US` (English - US, default)
-- `en-GB` (English - UK)
-- `es` (Spanish)
-- `fr` (French)
-- `de` (German)
-- `it` (Italian)
-- `pt` (Portuguese)
-- `zh` (Chinese)
-- `ja` (Japanese)
-- `ko` (Korean)
-
-### Additional Options
-
-- **Smart Formatting**: Automatically format numbers, dates, and currency
-- **Punctuation**: Add punctuation to transcriptions
-- **Paragraphs**: Detect and format paragraph breaks
-- **Utterances**: Detect utterance boundaries
-- **Diarization**: Identify different speakers
-
-## Example Output
-
-### Sample Audio Transcription
-
-Input: Audio file with speech
-
-```
-"Yeah. As much as it's worth celebrating, the first spacewalk with an all female team,
-I think many of us are looking forward to it just being normal..."
-```
-
-### Generated SRT File
-
-```
-1
-00:00:00,080 --> 00:00:03,220
-Yeah. As as much as, it's worth celebrating,
-
-2
-00:00:04,400 --> 00:00:07,859
-the first, spacewalk, with an all female team,
-
-3
-00:00:08,475 --> 00:00:10,715
-I think many of us are looking forward
-
-4
-00:00:10,715 --> 00:00:14,235
-to it just being normal and I think
-```
-
-## Supported Audio Formats
-
-The script supports various audio formats including:
+AssemblyAI supports most common audio formats:
 
 - WAV
 - MP3
 - MP4
 - M4A
 - FLAC
-- OGG
-- WebM
-- And many more
+- And more...
 
-## Error Handling
+## Technical Details
 
-The script includes comprehensive error handling for:
+### Transcription Configuration
 
-- Missing API keys
-- Invalid audio files
-- Network connectivity issues
-- API rate limits
-- File permission errors
+The server uses optimized settings for high-quality transcription:
 
-## Examples
+- **Speech Model**: Best quality model
+- **Speaker Labels**: Distinguishes different speakers
+- **Punctuation**: Adds proper punctuation
+- **Text Formatting**: Improves readability
+- **Entity Detection**: Identifies names, places, etc.
 
-See `example_usage.py` for more detailed programmatic examples.
+### Error Handling
 
-### Basic Example
+The server includes comprehensive error handling for:
 
-```bash
-python audio_transcriber.py https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav
-```
+- File not found errors
+- Transcription failures
+- Network issues
+- Invalid parameters
 
-### Advanced Example with All Options
+## Differences from Original Script
 
-```bash
-python audio_transcriber.py \
-    my_audio.wav \
-    -o my_captions.srt \
-    -m nova-3 \
-    -l en-US \
-    --line-length 60 \
-    --diarize \
-    --verbose
-```
+This MCP server version offers several advantages over the original script:
+
+1. **Reusable**: Can be called multiple times with different files
+2. **Parameterized**: Language and file path are configurable
+3. **Integrated**: Works with AI assistants and other MCP clients
+4. **Error Handling**: Better error messages and recovery
+5. **Multiple Formats**: Both SRT and VTT output options
+6. **No File Output**: Returns content directly (no need to manage output files)
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Errors**: Make sure all dependencies are installed
-
-   ```bash
-   pip install deepgram-sdk deepgram-captions
-   ```
-
-2. **API Key Errors**: Verify your API key is set correctly
-
-   ```bash
-   echo $DEEPGRAM_API_KEY
-   ```
-
-3. **Audio File Not Found**: Check file paths and permissions
-
-4. **Network Errors**: Verify internet connectivity for URL-based audio
+1. **Import Error for fastmcp**: Install with `pip install fastmcp`
+2. **AssemblyAI API Error**: Check your API key and internet connection
+3. **File Not Found**: Verify the audio file path is correct and accessible
+4. **Transcription Failed**: Check audio file format and quality
 
 ### Getting Help
 
-- Check the [Deepgram Documentation](https://developers.deepgram.com/)
-- Review the [Deepgram Python SDK](https://github.com/deepgram/deepgram-python-sdk)
-- See the [Deepgram Python Captions Library](https://github.com/deepgram/deepgram-python-captions)
+- Check the FastMCP documentation: https://github.com/jlowin/fastmcp
+- AssemblyAI documentation: https://www.assemblyai.com/docs
+- File an issue if you encounter problems
 
 ## License
 
-This project is open source. Please check individual library licenses:
-
-- [Deepgram Python SDK](https://github.com/deepgram/deepgram-python-sdk/blob/main/LICENSE)
-- [Deepgram Python Captions](https://github.com/deepgram/deepgram-python-captions/blob/main/LICENSE)
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
+This project uses the same license as your original transcription script.
