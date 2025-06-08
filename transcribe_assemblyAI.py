@@ -2,7 +2,7 @@
 
 import assemblyai as aai
 
-aai.settings.api_key = "9393ac3a53354593bcaf4bd65323c45b"
+aai.settings.api_key = "ASSEMBLYAI_API_KEY"
 aai.settings.base_url = "https://api.eu.assemblyai.com"
 
 audio_file = "output/output.wav"
