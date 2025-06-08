@@ -1,202 +1,225 @@
-# Audio Transcription MCP Server
+# Audio Extraction MCP Server
 
-This is a Model Context Protocol (MCP) server that provides audio transcription capabilities using AssemblyAI. It converts your original script into a reusable MCP server that can transcribe audio files and return SRT or VTT subtitle formats.
+A Model Context Protocol (MCP) server that provides audio extraction capabilities from video files, optimized for transcription and speech recognition workflows.
 
 ## Features
 
-- **Audio Transcription**: Transcribe local audio files to text with timestamps
-- **Multiple Output Formats**: Generate both SRT and VTT subtitle formats
-- **Language Support**: Configurable language codes (optimized for Korean, supports many others)
-- **Advanced Configuration**: Includes speaker labels, punctuation, and entity detection
-- **Error Handling**: Comprehensive error handling with meaningful messages
-- **MCP Integration**: Built with FastMCP for easy integration with AI assistants
+- **Extract audio from video files** using FFmpeg with optimized settings for transcription
+- **Container-based processing** with support for Docker and Podman
+- **Format validation** for input video files and output audio files
+- **Multiple audio output formats** (WAV, MP3, FLAC, M4A, OGG)
+- **Optimized settings** for speech recognition (16kHz, mono, 16-bit PCM)
+- **Comprehensive error handling** and logging
+- **Async processing** to avoid blocking operations
+
+## Supported Formats
+
+### Input Video Formats
+
+- MP4, AVI, MKV, MOV, WMV, FLV, WebM, M4V
+
+### Output Audio Formats
+
+- WAV (recommended for transcription), MP3, FLAC, M4A, OGG
 
 ## Installation
 
-1. **Install Dependencies**:
+1. **Install dependencies:**
 
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-2. **Set up AssemblyAI API Key**:
-   - The current script includes an API key, but you should replace it with your own
-   - Get your API key from [AssemblyAI](https://www.assemblyai.com/)
-   - Update the key in `transcribe_mcp_server.py`
+2. **Ensure FFmpeg is available:**
+
+   - **Container mode (recommended):** Install Docker or Podman
+   - **Local mode:** Install FFmpeg locally and ensure it's in your PATH
+
+3. **Install the MCP server** (if using with Claude Desktop or other MCP clients):
+   ```bash
+   fastmcp install audio_extractor_mcp_server.py --name "Audio Extraction Server"
+   ```
 
 ## Usage
 
 ### Running the Server
 
-**Option 1: Direct execution**
+**Standalone:**
 
 ```bash
-python transcribe_mcp_server.py
+python audio_extractor_mcp_server.py
 ```
 
-**Option 2: Using FastMCP CLI**
+**Via FastMCP CLI:**
 
 ```bash
-fastmcp run transcribe_mcp_server.py
+fastmcp run audio_extractor_mcp_server.py
 ```
 
-**Option 3: For development with inspector**
+**Development mode with auto-reload:**
 
 ```bash
-fastmcp dev transcribe_mcp_server.py
+fastmcp dev audio_extractor_mcp_server.py
 ```
 
 ### Available Tools
 
-The server provides three main tools:
+#### 1. `extract_audio`
 
-1. **`transcribe_audio_to_srt`**
+Extract audio from a video file with settings optimized for transcription.
 
-   - **Purpose**: Transcribe audio file and return SRT subtitle content
-   - **Parameters**:
-     - `audio_file_path` (string): Path to your local audio file
-     - `language_code` (string, optional): Language code (default: "ko" for Korean)
-   - **Returns**: SRT formatted subtitle text
+**Parameters:**
 
-2. **`transcribe_audio_to_vtt`**
+- `input_video_path` (string): Path to the input video file
+- `output_audio_path` (string): Path where the extracted audio will be saved
+- `use_container` (boolean, optional): Use container-based FFmpeg (default: true)
+- `container_runtime` (string, optional): Container runtime ("auto", "podman", "docker")
+- `timeout` (integer, optional): Timeout in seconds (default: 600)
 
-   - **Purpose**: Transcribe audio file and return VTT subtitle content
-   - **Parameters**:
-     - `audio_file_path` (string): Path to your local audio file
-     - `language_code` (string, optional): Language code (default: "ko" for Korean)
-   - **Returns**: VTT formatted subtitle text
+**Example:**
 
-3. **`get_supported_languages`**
-   - **Purpose**: Get list of supported language codes
-   - **Parameters**: None
-   - **Returns**: List of language codes (en, ko, ja, zh, etc.)
-
-### Testing the Server
-
-Run the test script to verify everything works:
-
-```bash
-python test_transcription_server.py
+```python
+await client.call_tool("extract_audio", {
+    "input_video_path": "/path/to/video.mp4",
+    "output_audio_path": "/path/to/output.wav"
+})
 ```
 
-Make sure you have an audio file at `output/output.wav` or update the path in the test script.
+#### 2. `get_supported_formats`
 
-### Using with AI Assistants
+Get information about supported video and audio formats.
 
-#### Claude Desktop Integration
+**Returns:** Dictionary with supported formats and optimal settings.
 
-1. **Install via FastMCP CLI** (recommended):
+#### 3. `validate_video_file`
 
-```bash
-fastmcp install transcribe_mcp_server.py --name "Audio Transcription"
-```
+Validate a video file for compatibility and get file information.
 
-2. **Manual Configuration**:
-   Add to your `claude_desktop_config.json`:
+**Parameters:**
 
-```json
-{
-  "mcpServers": {
-    "audio-transcription": {
-      "command": "python",
-      "args": ["path/to/transcribe_mcp_server.py"]
-    }
-  }
-}
-```
+- `video_path` (string): Path to the video file to validate
 
-#### Programmatic Usage
+**Returns:** Validation results and file metadata.
+
+### Available Resources
+
+#### `config://server/settings`
+
+Get current server configuration and status information.
+
+## Configuration
+
+The server can be configured through tool parameters:
+
+- **Container Engine:** Choose between Docker and Podman for FFmpeg processing
+- **Timeout:** Set processing timeout for large files
+- **Runtime Detection:** Automatic detection of available container runtimes
+
+## Audio Settings
+
+The server uses optimal settings for transcription:
+
+- **Sample Rate:** 16kHz (optimal for speech recognition)
+- **Channels:** Mono (1 channel)
+- **Codec:** PCM 16-bit signed little-endian
+- **Format:** WAV (recommended) or other supported formats
+
+## Examples
+
+### Basic Audio Extraction
 
 ```python
 import asyncio
 from fastmcp import Client
 
-async def transcribe_my_audio():
-    client = Client("transcribe_mcp_server.py")
-
-    async with client:
-        result = await client.call_tool("transcribe_audio_to_srt", {
-            "audio_file_path": "my_audio.wav",
-            "language_code": "en"
+async def extract_audio_example():
+    async with Client("audio_extractor_mcp_server.py") as client:
+        result = await client.call_tool("extract_audio", {
+            "input_video_path": "input/meeting.mp4",
+            "output_audio_path": "output/meeting_audio.wav"
         })
+        print(f"Extraction successful: {result['success']}")
+        print(f"Output file: {result['output_path']}")
+        print(f"File size: {result['output_size_mb']} MB")
 
-        srt_content = result[0].text
-        print(srt_content)
-
-asyncio.run(transcribe_my_audio())
+asyncio.run(extract_audio_example())
 ```
 
-## Configuration
+### File Validation
 
-### Language Codes
+```python
+async def validate_file_example():
+    async with Client("audio_extractor_mcp_server.py") as client:
+        result = await client.call_tool("validate_video_file", {
+            "video_path": "input/video.mp4"
+        })
 
-- `en` - English
-- `ko` - Korean (default)
-- `ja` - Japanese
-- `zh` - Chinese
-- `es` - Spanish
-- `fr` - French
-- `de` - German
-- And more...
+        if result["valid"]:
+            print(f"File is valid: {result['filename']}")
+            print(f"Size: {result['size_mb']} MB")
+            if result["warnings"]:
+                print("Warnings:", result["warnings"])
+        else:
+            print(f"File is invalid: {result['error']}")
 
-### Audio Formats
+asyncio.run(validate_file_example())
+```
 
-AssemblyAI supports most common audio formats:
+## Integration with Claude Desktop
 
-- WAV
-- MP3
-- MP4
-- M4A
-- FLAC
-- And more...
+Add to your `claude_desktop_config.json`:
 
-## Technical Details
-
-### Transcription Configuration
-
-The server uses optimized settings for high-quality transcription:
-
-- **Speech Model**: Best quality model
-- **Speaker Labels**: Distinguishes different speakers
-- **Punctuation**: Adds proper punctuation
-- **Text Formatting**: Improves readability
-- **Entity Detection**: Identifies names, places, etc.
-
-### Error Handling
-
-The server includes comprehensive error handling for:
-
-- File not found errors
-- Transcription failures
-- Network issues
-- Invalid parameters
-
-## Differences from Original Script
-
-This MCP server version offers several advantages over the original script:
-
-1. **Reusable**: Can be called multiple times with different files
-2. **Parameterized**: Language and file path are configurable
-3. **Integrated**: Works with AI assistants and other MCP clients
-4. **Error Handling**: Better error messages and recovery
-5. **Multiple Formats**: Both SRT and VTT output options
-6. **No File Output**: Returns content directly (no need to manage output files)
+```json
+{
+  "mcpServers": {
+    "audio-extraction": {
+      "command": "python",
+      "args": ["path/to/audio_extractor_mcp_server.py"]
+    }
+  }
+}
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Error for fastmcp**: Install with `pip install fastmcp`
-2. **AssemblyAI API Error**: Check your API key and internet connection
-3. **File Not Found**: Verify the audio file path is correct and accessible
-4. **Transcription Failed**: Check audio file format and quality
+1. **FFmpeg not found:**
 
-### Getting Help
+   - Install FFmpeg locally or ensure Docker/Podman is available
+   - Check that the container runtime is properly installed
 
-- Check the FastMCP documentation: https://github.com/jlowin/fastmcp
-- AssemblyAI documentation: https://www.assemblyai.com/docs
-- File an issue if you encounter problems
+2. **Permission errors:**
+
+   - Ensure the output directory exists and is writable
+   - Check file permissions for input video files
+
+3. **Container runtime issues:**
+
+   - Verify Docker or Podman is installed and running
+   - Try setting `container_runtime` explicitly instead of "auto"
+
+4. **Large file processing:**
+   - Increase the `timeout` parameter for very large video files
+   - Monitor disk space for output files
+
+### Logging
+
+The server provides detailed logging. To enable debug logging:
+
+```python
+import logging
+logging.getLogger().setLevel(logging.DEBUG)
+```
+
+## Dependencies
+
+- `fastmcp`: MCP server framework
+- `ffmpeg-python`: FFmpeg Python wrapper
+- `aiofiles`: Async file operations
+- FFmpeg: Audio/video processing (via container or local installation)
+- Docker or Podman: Container runtime (if using container mode)
 
 ## License
 
-This project uses the same license as your original transcription script.
+This project uses the same license as the original audio extractor module.
